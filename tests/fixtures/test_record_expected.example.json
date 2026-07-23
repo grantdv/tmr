@@ -1,0 +1,32 @@
+{
+  "patient_name": "DOE, JANE",
+  "dob": "1970-01-01",
+  "facility_name": "Example Health",
+  "provider_name": "Example Provider, MD",
+  "date_of_service": "2025-01-15",
+  "analysis_status": "needs_review",
+  "review_required": true,
+  "document_sections": {
+    "expected_count": 1,
+    "required_sections": [
+      {
+        "page_start": 1,
+        "text_contains": "Example source text"
+      }
+    ]
+  },
+  "labs": {
+    "expected_count": 0
+  },
+  "prescriptions": [
+    {
+      "medication_name": "ExampleMed",
+      "dosage_amount": "10mg",
+      "frequency": "qday",
+      "normalized_frequency": "daily",
+      "source_page": 1,
+      "source_text_contains": "ExampleMed 10mg qday"
+    }
+  ],
+  "expected_review_reason_contains": []
+}

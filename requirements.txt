@@ -1,0 +1,21 @@
+# TMR Project Dependencies
+# PDF Processing
+PyMuPDF
+pdfplumber
+
+# OCR and Image Processing
+opencv-python-headless
+pytesseract
+Pillow
+
+# Data Management & Validation
+pydantic
+python-dotenv
+
+# Database
+sqlalchemy
+psycopg2-binary
+
+# Utilities
+tqdm
+requests

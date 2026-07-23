@@ -1,0 +1,16 @@
+[project]
+name = "tmr"
+version = "0.1.0"
+description = "Local medical record ingestion, OCR, and LLM-assisted extraction"
+requires-python = ">=3.9"
+readme = "README.md"
+
+[tool.compileall]
+quiet = 1
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
