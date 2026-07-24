@@ -162,7 +162,7 @@ def main():
     print("Starting TMR Ingestion Engine...")
     print(f"[DEBUG] Entry point: {Path(__file__).resolve()}")
     print(f"[DEBUG] Working directory: {Path.cwd()}")
-    print("[DEBUG] Provider: local; base URL: http://localhost:8080")
+    # LLM endpoint is reported after the extractor is initialized from .env.
     print(f"[DEBUG] OCR cache enabled: {not args.no_ocr_cache}")
     print(f"[DEBUG] LLM cache enabled: {not args.no_llm_cache}")
     print(f"[DEBUG] TMR version: {TMR_VERSION}; output schema: {OUTPUT_SCHEMA_VERSION}")
@@ -173,6 +173,7 @@ def main():
         return
 
     extractor = EntityExtractor(provider="local", use_llm_cache=not args.no_llm_cache)
+    print(f"[DEBUG] Provider: local; base URL: {extractor.brain.base_url}")
     results: List[MedicalRecord] = []
     output_records = []
 

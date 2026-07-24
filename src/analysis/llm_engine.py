@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class LLMEngineError(RuntimeError):
@@ -22,7 +25,7 @@ class LLMEngine:
     def __init__(
         self,
         provider: str = "local",
-        base_url: str = "http://localhost:8080",
+        base_url: Optional[str] = None,
         timeout: int = 180,
         max_context_chars: int = 24000,
         use_cache: bool = True,
@@ -30,7 +33,7 @@ class LLMEngine:
         if provider != "local":
             raise ValueError("Only the local LLM provider is supported")
         self.provider = provider
-        self.base_url = base_url.rstrip("/")
+        self.base_url = (base_url or os.getenv("LLM_ENDPOINT") or "http://localhost:8080").rstrip("/")
         self.timeout = timeout
         self.max_context_chars = max_context_chars
         self.use_cache = use_cache
