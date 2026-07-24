@@ -2,16 +2,27 @@ import argparse
 import hashlib
 import json
 import sys
+import time
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
+from dotenv import load_dotenv
 
 from analysis.extractor import EntityExtractor
 from analysis.schema import MedicalRecord
+from analysis.queue import (
+    add_task,
+    get_queue_depth,
+    init_db,
+)
+from analysis.triage import TriageEngine
 from ingestion.scanner import FileScanner
 from processing.image_processor import ImageProcessor
 from processing.pdf_processor import PDFProcessor
 from version import OUTPUT_SCHEMA_VERSION, TMR_VERSION
+
+load_dotenv()
 
 
 def parse_args():
@@ -65,7 +76,7 @@ def file_metadata(file_path: str) -> Dict[str, object]:
     }
 
 
-def process_file(file_path: str, extractor: EntityExtractor, use_ocr_cache: bool) -> MedicalRecord:
+def process_file(file_path: str, use_ocr_cache: bool) -> str:
     print(f"\n--- Processing: {file_path} ---")
     lower_path = file_path.lower()
 
@@ -76,7 +87,7 @@ def process_file(file_path: str, extractor: EntityExtractor, use_ocr_cache: bool
     else:
         raise ValueError(f"Unsupported file type: {file_path}")
 
-    return extractor.analyze(content)
+    return content
 
 
 def build_output_artifact(
@@ -162,10 +173,11 @@ def main():
     print("Starting TMR Ingestion Engine...")
     print(f"[DEBUG] Entry point: {Path(__file__).resolve()}")
     print(f"[DEBUG] Working directory: {Path.cwd()}")
-    # LLM endpoint is reported after the extractor is initialized from .env.
     print(f"[DEBUG] OCR cache enabled: {not args.no_ocr_cache}")
     print(f"[DEBUG] LLM cache enabled: {not args.no_llm_cache}")
     print(f"[DEBUG] TMR version: {TMR_VERSION}; output schema: {OUTPUT_SCHEMA_VERSION}")
+
+    init_db()
 
     files = collect_files(args)
     if not files:
@@ -174,30 +186,52 @@ def main():
 
     extractor = EntityExtractor(provider="local", use_llm_cache=not args.no_llm_cache)
     print(f"[DEBUG] Provider: local; base URL: {extractor.brain.base_url}")
+
     results: List[MedicalRecord] = []
     output_records = []
 
     for file_path in files:
-        try:
-            analysis = process_file(file_path, extractor, use_ocr_cache=not args.no_ocr_cache)
-        except Exception as exc:
-            print(f"[ERROR] Failed to process {file_path}: {exc}")
-            continue
-        results.append(analysis)
-        output_records.append(
-            {
-                "source_file": file_metadata(file_path),
-                "record": analysis.model_dump(mode="json"),
-            }
+        print(f"\n--- Triage: {file_path} ---")
+        content = process_file(file_path, use_ocr_cache=not args.no_ocr_cache)
+        
+        # Run the Triage Engine
+        # This will populate the queue
+        triage_tasks = TriageEngine.triage_document(
+            doc_id=file_metadata(file_path)["sha256"],
+            full_text=content
         )
+        
+        print(f"  [Queue] Added {len(triage_tasks)} tasks to the queue.")
+
+    # Launch the worker in the background
+    # Note: In a production setup, this would be a separate process.
+    # For now, we'll call it as a subprocess to keep the main thread free for monitoring.
+    worker_proc = subprocess.Popen(
+        ["python3", "src/analysis/worker.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    print(f"\n[System] Worker started (PID: {worker_proc.pid}).")
+    print(f"[System] Monitoring queue depth... (Press Ctrl+C to stop)")
+
+    try:
+        while True:
+            depth = get_queue_depth()
+            print(f"\r[Queue Status] Current Depth: {depth}", end="", flush=True)
+            time.sleep(2)
+    except KeyboardInterrupt:
+        print("\nStopping worker...")
+        worker_proc.terminate()
+        print("Ingestion stopped.")
 
     finished_at = datetime.now(timezone.utc).isoformat()
+    # Note: This part of the logic will be updated to pull from the DB 
+    # once the worker finishes all tasks.
+    
     print_summary(results)
     artifact = build_output_artifact(output_records, extractor, started_at, finished_at, args)
     output_path = write_output(artifact, args.output)
     print(f"Structured output written to: {output_path}")
     print("=" * 40)
-
-
-if __name__ == "__main__":
-    main()
